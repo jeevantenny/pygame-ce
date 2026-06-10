@@ -650,26 +650,35 @@ pgSound_Play(PyObject *self, PyObject *args, PyObject *kwargs)
 {
     Mix_Chunk *chunk = pgSound_AsChunk(self);
     int channelnum = -1;
-    int loops = 0, playtime = -1, fade_ms = 0;
+    int loops = 0, playtime = -1, fade_ms = 0, force = 0;
 
     CHECK_CHUNK_VALID(chunk, NULL);
 
-    char *kwids[] = {"loops", "maxtime", "fade_ms", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|iii", kwids, &loops,
-                                     &playtime, &fade_ms)) {
+    char *kwids[] = {"loops", "maxtime", "fade_ms", "force", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|iiii", kwids, &loops,
+                                     &playtime, &fade_ms, &force)) {
         return NULL;
     }
 
     Py_BEGIN_ALLOW_THREADS;
+    if (force && Mix_GroupAvailable(-1) == -1) {
+        channelnum = Mix_GroupOldest(-1);
+        Mix_HaltChannel(channelnum);
+    }
+
     if (fade_ms > 0) {
         channelnum =
-            Mix_FadeInChannelTimed(-1, chunk, loops, fade_ms, playtime);
+            Mix_FadeInChannelTimed(channelnum, chunk, loops, fade_ms, playtime);
     }
     else {
-        channelnum = Mix_PlayChannelTimed(-1, chunk, loops, playtime);
+        channelnum = Mix_PlayChannelTimed(channelnum, chunk, loops, playtime);
     }
     Py_END_ALLOW_THREADS;
+
     if (channelnum == -1) {
+        if (force) {
+            return RAISE(pgExc_SDLError, SDL_GetError());
+        }
         Py_RETURN_NONE;
     }
 
